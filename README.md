@@ -4,9 +4,7 @@
 
 ### A meta-harness for all your AI agents
 
-Omnigent runs coding agents such as Claude Code, Codex, and Pi, and coordinates
-several of them as interchangeable workers under one orchestrator. You provide
-the models and the infrastructure, and Omnigent runs the agents on top.
+Omnigent provides a common layer over Claude Code, Codex, Pi, and the agents you write yourself: swap or combine harnesses without rewriting, keep them in check with policies and sandboxing, and collaborate in real time on the same live session, from any device.
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://github.com/omnigent-ai/omnigent/blob/main/LICENSE)
 ![Status: alpha](https://img.shields.io/badge/status-alpha-orange.svg)
