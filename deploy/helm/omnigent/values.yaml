@@ -1,0 +1,181 @@
+# Default values for the omnigent chart.
+#
+# No secret has a working default: database password / URL and any LLM keys
+# must be supplied at install time (an untracked values file, --set, or a
+# pre-created Secret referenced by name). See README.md.
+
+image:
+  repository: ghcr.io/omnigent-ai/omnigent-server
+  # With sandboxes.enabled the image MUST include the `kubernetes` extra —
+  # the published image does not. Build and push your own:
+  #   docker build -f deploy/docker/Dockerfile \
+  #     --build-arg OMNIGENT_EXTRAS=kubernetes -t <you>/omnigent-server:k8s .
+  tag: latest
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+server:
+  # Public URL the app is reached at (e.g. your Cloudflare tunnel hostname,
+  # https://omnigent.example.com). Feeds OMNIGENT_WS_ALLOWED_ORIGINS so browser
+  # WebSockets and uploads from that origin are accepted. Leave empty when you
+  # only use kubectl port-forward — localhost origins are always trusted.
+  publicUrl: "https://omnigent.fidian.ai"
+  # Extra literal env vars merged into the server ConfigMap.
+  env: {}
+  # Extra envFrom sources on the server container, e.g. an OIDC Secret:
+  #   - secretRef: {name: omnigent-oidc}
+  extraEnvFrom: []
+  resources:
+    requests:
+      memory: 512Mi
+      cpu: 250m
+    limits:
+      memory: 1Gi
+      cpu: 1000m
+  # First boot against a slow/remote database can spend ~1 min in migrations
+  # before listening — raise the liveness initialDelaySeconds to ~90 if the
+  # pod gets killed during its first deploy.
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: http
+    initialDelaySeconds: 20
+    periodSeconds: 30
+    timeoutSeconds: 5
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+auth:
+  # false → single-user server, no login (OMNIGENT_AUTH_ENABLED=0). Pair it
+  # with SSO at your tunnel/proxy or keep the Service private — every request
+  # that reaches the server acts as the single local user.
+  # true → OMNIGENT_AUTH_ENABLED=1; the server picks the built-in accounts
+  # provider unless `provider` or OIDC env vars (server.extraEnvFrom) say
+  # otherwise. Note: the accounts provider cannot authenticate managed-sandbox
+  # runner dial-backs — use single-user, header, or oidc with sandboxes.
+  enabled: false
+  # Only read when enabled=false: requests without an identity header resolve
+  # to the local user instead of 401 (OMNIGENT_LOCAL_SINGLE_USER=1).
+  localSingleUser: true
+  # Optional explicit OMNIGENT_AUTH_PROVIDER pin: accounts / header / oidc.
+  # Only read when enabled: true.
+  provider: ""
+  # Required for the accounts provider (generate: openssl rand -hex 32).
+  # Ignored when existingSecret is set — put OMNIGENT_ACCOUNTS_COOKIE_SECRET
+  # there instead.
+  accountsCookieSecret: ""
+
+database:
+  # External database connection string, e.g.
+  #   postgresql+psycopg://user:pass@host:5432/omnigent
+  # Required when postgres.enabled=false, unless existingSecret provides
+  # DATABASE_URL.
+  url: ""
+
+# Name of a pre-created Secret in the release namespace used INSTEAD of the
+# chart-managed one. Must hold DATABASE_URL, plus POSTGRES_PASSWORD when
+# postgres.enabled, plus OMNIGENT_ACCOUNTS_COOKIE_SECRET for accounts auth.
+existingSecret: ""
+
+postgres:
+  # Single-replica in-cluster Postgres. Disable to bring your own database
+  # (set database.url or existingSecret).
+  enabled: true
+  image: postgres:16-alpine
+  username: omnigent
+  database: omnigent
+  # Required when enabled (no default). Interpolated into DATABASE_URL, so
+  # use URL-safe characters — or provide both via existingSecret.
+  password: ""
+  storage:
+    size: 10Gi
+    className: ""
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 100m
+    limits:
+      memory: 512Mi
+      cpu: 500m
+
+# Artifact store (/data/artifacts): uploaded files, minted admin credentials.
+persistence:
+  size: 10Gi
+  className: ""
+  # Use a PVC you created yourself instead of the chart-managed one.
+  existingClaim: ""
+
+service:
+  type: ClusterIP
+  port: 80
+
+# Optional — only for putting the server on a public address via an ingress
+# controller. Not needed for kubectl port-forward or a Cloudflare tunnel
+# (cloudflared talks to the Service directly).
+ingress:
+  enabled: false
+  className: nginx
+  # With tls.enabled, someone must issue the certificate: either add the
+  # cert-manager annotation below (and create a ClusterIssuer of that name —
+  # see deploy/kubernetes/README.md "Create a cert-manager issuer"), or
+  # pre-create the tls.secretName Secret yourself.
+  annotations: {}
+  # cert-manager.io/cluster-issuer: letsencrypt-prod
+  host: omnigent.example.com
+  tls:
+    enabled: true
+    secretName: omnigent-tls
+
+sandboxes:
+  # The kubernetes managed-sandbox provider: a host_type "managed" session
+  # spawns one runner Pod that runs `omnigent host` and dials back to the
+  # server over the in-cluster Service — nothing needs public exposure.
+  enabled: true
+  # Runner Pods live in their own namespace so the server's Pod/Secret rights
+  # can never touch the server or database (two-namespace blast-radius design).
+  namespace: omnigent-sandboxes
+  createNamespace: true
+  # URL runner Pods dial back to. Default: the in-cluster Service DNS
+  # (http://<fullname>.<release-namespace>.svc.cluster.local).
+  serverUrl: ""
+  # Host image runner Pods boot from; empty = the provider default
+  # (ghcr.io/omnigent-ai/omnigent-host, amd64).
+  image: ""
+  credentials:
+    # Harness LLM / git credentials projected into every runner Pod via
+    # envFrom. Two options; existingSecret wins when both are set.
+    # A) Pre-created Secret in the sandboxes namespace (sealed-secrets /
+    #    external-secrets friendly):
+    existingSecret: ""
+    # B) Chart-managed Secret rendered from this map — supply the values from
+    #    an untracked values file or --set, never commit real keys:
+    #      data:
+    #        ANTHROPIC_API_KEY: sk-ant-...
+    #        GIT_TOKEN: github_pat_...
+    #    Vars outside the standard harness set are only forwarded to runners
+    #    when named in OMNIGENT_RUNNER_ENV_PASSTHROUGH:
+    #        FIREWORKS_API_KEY: fw_...
+    #        OMNIGENT_RUNNER_ENV_PASSTHROUGH: FIREWORKS_API_KEY
+    data: {}
+  # SERVER env-var NAMES injected as literal runner-Pod env (prefer
+  # credentials for anything secret).
+  env: []
+  # Extra node labels for runner Pods, merged with the provider's mandatory
+  # kubernetes.io/arch: amd64.
+  nodeSelector: {}
+  # Runner Pod sizing override (provider defaults: 0.5-2 cpu / 1-4Gi), e.g.
+  #   requests: {cpu: 500m, memory: 1Gi}
+  #   limits: {cpu: "2", memory: 4Gi}
+  resources: {}

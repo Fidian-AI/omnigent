@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "omnigent.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "omnigent.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+spec:
+  # The server keeps an in-memory runner registry — a second replica would
+  # split the registry. Do not scale this out.
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "omnigent.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: server
+  template:
+    metadata:
+      labels:
+        {{- include "omnigent.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: server
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- if .Values.sandboxes.enabled }}
+        checksum/sandbox-config: {{ include (print $.Template.BasePath "/sandboxes-configmap.yaml") . | sha256sum }}
+        {{- end }}
+        {{- if not .Values.existingSecret }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.sandboxes.enabled }}
+      serviceAccountName: {{ include "omnigent.serverServiceAccountName" . }}
+      {{- end }}
+      containers:
+        - name: omnigent
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: 8000
+              name: http
+          {{- if .Values.sandboxes.enabled }}
+          env:
+            - name: OMNIGENT_CONFIG
+              value: /etc/omnigent/config.yaml
+          {{- end }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "omnigent.fullname" . }}-config
+            - secretRef:
+                name: {{ include "omnigent.secretName" . }}
+            {{- with .Values.server.extraEnvFrom }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          volumeMounts:
+            - name: artifacts
+              mountPath: /data/artifacts
+            {{- if .Values.sandboxes.enabled }}
+            - name: sandbox-config
+              mountPath: /etc/omnigent
+              readOnly: true
+            {{- end }}
+          resources:
+            {{- toYaml .Values.server.resources | nindent 12 }}
+          livenessProbe:
+            {{- toYaml .Values.server.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.server.readinessProbe | nindent 12 }}
+      volumes:
+        - name: artifacts
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.existingClaim | default (printf "%s-artifacts" (include "omnigent.fullname" .)) }}
+        {{- if .Values.sandboxes.enabled }}
+        - name: sandbox-config
+          configMap:
+            name: {{ include "omnigent.fullname" . }}-sandbox-config
+        {{- end }}
+      {{- with .Values.server.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.server.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.server.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

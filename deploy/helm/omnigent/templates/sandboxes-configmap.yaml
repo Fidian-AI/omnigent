@@ -1,0 +1,45 @@
+{{- if .Values.sandboxes.enabled }}
+# The server's `sandbox:` config, read from the OMNIGENT_CONFIG file (the
+# deployment mounts this at /etc/omnigent). Secrets stay in the environment.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "omnigent.fullname" . }}-sandbox-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "omnigent.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+data:
+  config.yaml: |
+    sandbox:
+      provider: kubernetes
+      server_url: {{ include "omnigent.sandboxServerUrl" . | quote }}
+      kubernetes:
+        namespace: {{ .Values.sandboxes.namespace | quote }}
+        secret_name: {{ include "omnigent.credsSecretName" . | quote }}
+        service_account: {{ include "omnigent.runnerServiceAccountName" . | quote }}
+        {{- with .Values.sandboxes.image }}
+        image: {{ . | quote }}
+        {{- end }}
+        {{- with .Values.sandboxes.env }}
+        env:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{/* Leaf values quoted: the launcher's config parser requires
+             strings and rejects YAML ints (e.g. --set ...cpu=2) at boot. */}}
+        {{- with .Values.sandboxes.nodeSelector }}
+        node_selector:
+          {{- range $key, $value := . }}
+          {{ $key }}: {{ $value | toString | quote }}
+          {{- end }}
+        {{- end }}
+        {{- with .Values.sandboxes.resources }}
+        resources:
+          {{- range $tier, $vals := . }}
+          {{ $tier }}:
+            {{- range $key, $value := $vals }}
+            {{ $key }}: {{ $value | toString | quote }}
+            {{- end }}
+          {{- end }}
+        {{- end }}
+{{- end }}

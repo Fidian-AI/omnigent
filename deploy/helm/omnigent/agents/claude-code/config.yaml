@@ -1,0 +1,12 @@
+spec_version: 1
+name: claude-code
+description: >-
+  Claude Code on the native terminal harness — the real claude CLI in a
+  take-over-able terminal, same runtime as the built-in Claude Code entry.
+  Authenticates with ANTHROPIC_API_KEY from the runner environment. Extend
+  it by adding skills/prompts to this bundle, or per-repo via CLAUDE.md and
+  .claude/ in the session workspace.
+executor:
+  type: omnigent
+  config:
+    harness: claude-native

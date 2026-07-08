@@ -1,0 +1,14 @@
+spec_version: 1
+name: pi-glm
+description: >-
+  Coding agent on the pi harness running GLM 5.2 served by Fireworks AI
+  (Chat Completions wire, via the named "fireworks" provider baked into the
+  host image).
+executor:
+  type: omnigent
+  config:
+    harness: pi
+  model: accounts/fireworks/models/glm-5p2
+  auth:
+    type: provider
+    name: fireworks

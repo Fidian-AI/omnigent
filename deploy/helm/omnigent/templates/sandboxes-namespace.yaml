@@ -1,0 +1,19 @@
+{{- if and .Values.sandboxes.enabled .Values.sandboxes.createNamespace (ne .Values.sandboxes.namespace .Release.Namespace) }}
+# Dedicated namespace for the on-demand runner Pods, kept SEPARATE from the
+# server namespace so the server SA's Pod/Secret rights (scoped here by the
+# Role + RoleBinding) can never reach the server/DB Pods or the server's
+# Secrets. Pod Security `restricted` is enforced as defense-in-depth: even
+# with pods/create here, the server cannot create a privileged / hostPath /
+# host-namespace Pod. The launcher's runner Pods are restricted-compliant.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.sandboxes.namespace }}
+  labels:
+    {{- include "omnigent.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runner
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted
+{{- end }}

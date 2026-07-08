@@ -1,0 +1,20 @@
+# Named providers available to every runner Pod. Agents opt in per-spec with
+#   auth: {type: provider, name: <key>}
+# — a provider listed here is inert for agents that don't reference it.
+#
+# No secret material lives in this file: api_key_ref resolves the key from
+# the Pod environment at run time (projected from the omnigent-creds Secret;
+# names outside the standard harness set also need an entry in
+# OMNIGENT_RUNNER_ENV_PASSTHROUGH so the host forwards them to runners).
+#
+# wire_api notes: the codex harness only speaks the OpenAI Responses API and
+# coerces "chat" to "responses"; pi generates its own chat-completions config
+# and ignores this field. "responses" is correct for Fireworks (it serves
+# both wires).
+providers:
+  fireworks:
+    kind: key
+    openai:
+      base_url: https://api.fireworks.ai/inference/v1
+      api_key_ref: env:FIREWORKS_API_KEY
+      wire_api: responses

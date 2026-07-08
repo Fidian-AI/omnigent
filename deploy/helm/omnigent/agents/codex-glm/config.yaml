@@ -1,0 +1,15 @@
+spec_version: 1
+name: codex-glm
+description: >-
+  Coding agent on the codex harness pinned to the Fireworks AI endpoint
+  (named "fireworks" provider baked into the host image), defaulting to
+  GLM 5.2. The per-session model picker can switch to any other
+  Fireworks-hosted model; the endpoint stays Fireworks.
+executor:
+  type: omnigent
+  config:
+    harness: codex
+  model: accounts/fireworks/models/glm-5p2
+  auth:
+    type: provider
+    name: fireworks

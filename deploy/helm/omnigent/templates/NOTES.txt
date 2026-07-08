@@ -1,0 +1,54 @@
+Omnigent server deployed to namespace {{ .Release.Namespace }}.
+
+Reach it without any public exposure:
+
+  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "omnigent.fullname" . }} 8000:{{ .Values.service.port }}
+  open http://localhost:8000        (health: curl localhost:8000/health)
+
+The first boot runs database migrations before listening; the pod may restart
+once if the liveness probe fires during that window.
+{{- if .Values.auth.enabled }}
+{{- if include "omnigent.accountsAuth" . }}
+
+Auth: built-in accounts. The first visitor claims the instance and becomes
+admin via the Setup screen. NOTE: the accounts provider cannot authenticate
+managed-sandbox runner dial-backs — use single-user, header, or oidc auth if
+you create host_type "managed" sessions.
+{{- end }}
+{{- else }}
+
+Auth: DISABLED (single-user). Every request that reaches the server acts as
+the local user — keep the Service private (port-forward, or an SSO-guarded
+tunnel such as Cloudflare Access).
+{{- end }}
+{{- if .Values.sandboxes.enabled }}
+
+Managed sandboxes (kubernetes provider) are ON:
+  - Runner Pods run in namespace {{ .Values.sandboxes.namespace }} and dial
+    back to {{ include "omnigent.sandboxServerUrl" . }} — in-cluster, nothing
+    public.
+  - Harness credentials Secret: {{ include "omnigent.credsSecretName" . }}
+{{- if .Values.sandboxes.credentials.existingSecret }}
+    (pre-created by you — runner Pods stall in CreateContainerConfigError
+    until it exists in {{ .Values.sandboxes.namespace }}).
+{{- else if not .Values.sandboxes.credentials.data }}
+    WARNING: it is EMPTY — agents will have no LLM keys. Set
+    sandboxes.credentials.data (untracked values file) or switch to
+    credentials.existingSecret, then upgrade the release.
+{{- end }}
+{{- if eq .Values.image.repository "ghcr.io/omnigent-ai/omnigent-server" }}
+  - WARNING: image.repository is the stock server image, which does NOT
+    include the `kubernetes` extra — every managed launch will fail to import
+    the client. Build your own:
+      docker build -f deploy/docker/Dockerfile \
+        --build-arg OMNIGENT_EXTRAS=kubernetes -t <you>/omnigent-server:k8s .
+    then set image.repository / image.tag.
+{{- end }}
+
+Create a sandboxed session from the web UI (New Sandbox) or the API
+(POST /v1/sessions with "host_type": "managed").
+{{- end }}
+
+Connect a machine of your own as a host (optional):
+  omnigent login <server-url>
+  omnigent host --server <server-url>

@@ -1,0 +1,15 @@
+apiVersion: v2
+name: omnigent
+description: >-
+  Omnigent server with optional in-cluster Postgres and the kubernetes
+  managed-sandbox provider (on-demand runner Pods in a dedicated,
+  least-privilege namespace).
+type: application
+version: 0.1.0
+appVersion: "0.5.0"
+keywords:
+  - omnigent
+  - agents
+home: https://github.com/omnigent-ai/omnigent
+sources:
+  - https://github.com/omnigent-ai/omnigent

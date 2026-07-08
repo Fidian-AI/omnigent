@@ -1,0 +1,12 @@
+spec_version: 1
+name: codex-openai
+description: >-
+  Codex on the native terminal harness — the real codex CLI in a
+  take-over-able terminal, same runtime as the built-in Codex entry
+  (default OpenAI model; OPENAI_API_KEY from the runner environment).
+  Extend it by adding skills/prompts to this bundle, or per-repo via
+  AGENTS.md in the session workspace.
+executor:
+  type: omnigent
+  config:
+    harness: codex-native

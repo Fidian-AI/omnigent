@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "omnigent.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "omnigent.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+data:
+  HOST: "0.0.0.0"
+  PORT: "8000"
+  ARTIFACT_DIR: /data/artifacts
+  OMNIGENT_ADMIN_CREDENTIALS_PATH: /data/admin-credentials
+  {{- if .Values.auth.enabled }}
+  OMNIGENT_AUTH_ENABLED: "1"
+  {{- with .Values.auth.provider }}
+  OMNIGENT_AUTH_PROVIDER: {{ . | quote }}
+  {{- end }}
+  {{- if include "omnigent.accountsAuth" . }}
+  OMNIGENT_ACCOUNTS_AUTO_OPEN: "0"
+  {{- with .Values.server.publicUrl }}
+  OMNIGENT_ACCOUNTS_BASE_URL: {{ . | quote }}
+  {{- end }}
+  {{- end }}
+  {{- else }}
+  OMNIGENT_AUTH_ENABLED: "0"
+  # No-login single-user mode: headerless requests resolve to the local user
+  # instead of failing closed with 401. Emitted explicitly when false too —
+  # the image entrypoint defaults it to "1" whenever auth is off.
+  OMNIGENT_LOCAL_SINGLE_USER: {{ .Values.auth.localSingleUser | ternary "1" "0" | quote }}
+  {{- end }}
+  {{- with .Values.server.publicUrl }}
+  OMNIGENT_WS_ALLOWED_ORIGINS: {{ . | quote }}
+  {{- end }}
+  {{- range $key, $value := .Values.server.env }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}

@@ -1,0 +1,31 @@
+# Example deploy values for an EKS cluster with ECR-hosted images.
+# Copy OUTSIDE the repo (e.g. ~/omnigent-values.yaml), fill in the password,
+# and pass secrets at install time — never commit real values:
+#
+#   helm upgrade --install omnigent deploy/helm/omnigent \
+#     -n omnigent --create-namespace -f ~/omnigent-values.yaml \
+#     --set-string sandboxes.credentials.data.ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
+#     --set-string sandboxes.credentials.data.OPENAI_API_KEY=$OPENAI_API_KEY \
+#     --set-string sandboxes.credentials.data.FIREWORKS_API_KEY=$FIREWORKS_API_KEY
+#
+# Images (see ../README.md "Recreate this deployment"):
+#   server — deploy/docker/Dockerfile with OMNIGENT_EXTRAS=kubernetes
+#   host   — deploy/helm/omnigent/hostimage/ (named-provider config baked in)
+
+image:
+  repository: <account>.dkr.ecr.<region>.amazonaws.com/omnigent-server
+  tag: k8s
+
+postgres:
+  password: "<openssl rand -hex 16>"
+
+# server:
+#   publicUrl: https://omnigent.example.com   # your tunnel/ingress origin
+
+sandboxes:
+  image: <account>.dkr.ecr.<region>.amazonaws.com/omnigent-host:k8s-v2
+  credentials:
+    data:
+      # Key values are injected at upgrade time via --set-string (above).
+      # Passthrough names the non-standard vars the host forwards to runners.
+      OMNIGENT_RUNNER_ENV_PASSTHROUGH: FIREWORKS_API_KEY
